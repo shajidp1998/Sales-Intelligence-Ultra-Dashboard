@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultra Dashboard — Sales Intelligence</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #111210;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #e8e5df;
+    cursor: none;
+    overflow-x: hidden;
+  }
+
+  /* ── Custom Cursor ── */
+  #cursor {
+    position: fixed; width: 10px; height: 10px;
+    background: #5dcaa5; border-radius: 50%;
+    pointer-events: none; z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.08s ease, opacity 0.2s;
+    mix-blend-mode: screen;
+  }
+  #cursor-glow {
+    position: fixed; width: 340px; height: 340px;
+    background: radial-gradient(circle, rgba(93,202,165,0.07) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none; z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: left 0.18s ease, top 0.18s ease;
+  }
+
+  /* ── Marquee ── */
+  .marquee-wrap {
+    width: 100%; overflow: hidden;
+    background: rgba(93,202,165,0.04);
+    border-bottom: 1px solid rgba(93,202,165,0.08);
+    padding: 8px 0; white-space: nowrap;
+  }
+  @keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+  .marquee-track {
+    display: inline-flex; gap: 0;
+    animation: marquee 38s linear infinite;
+  }
+  .marquee-track:hover { animation-play-state: paused; }
+  .marquee-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: 0.07em; padding: 0 32px;
+    text-transform: uppercase;
+  }
+  .marquee-item .sep { color: rgba(255,255,255,0.15); margin: 0 4px; }
+  .pos { color: #5dcaa5; } .neg { color: #d85a30; } .neu { color: #9a9790; }
+
+  /* ── Dashboard Wrapper ── */
+  .db {
+    padding: 1.1rem 1.25rem 1.5rem;
+    position: relative; max-width: 1200px; margin: 0 auto;
+  }
+
+  /* ── Background Canvas ── */
+  #bgCanvas {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+  .content { position: relative; z-index: 1; }
+
+  /* ── Header ── */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
+  .hdr {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 1.1rem;
+    animation: fadeUp 0.55s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  .dtitle { font-size: 15px; font-weight: 500; color: #e8e5df; letter-spacing: 0.01em; }
+  .dsub { font-size: 11px; color: #3a3935; margin-top: 2px; }
+  @keyframes pulse { 0%,100%{opacity:0.35} 50%{opacity:1} }
+  .live-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: #5dcaa5; margin-right: 5px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .filters { display: flex; gap: 8px; align-items: center; }
+  .filters label { font-size: 11px; color: #4a4945; }
+  .filters select {
+    font-size: 11px; padding: 5px 10px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(22,22,20,0.8); color: #c8c5bf; outline: none; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .filters select:hover { border-color: rgba(93,202,165,0.3); }
+
+  /* ── KPI Grid ── */
+  .kgrid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-bottom: 1.1rem; }
+
+  /* ── Glassmorphism Base ── */
+  .glass {
+    background: rgba(22,22,20,0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+  }
+
+  /* ── KPI Cards ── */
+  .kpi {
+    padding: 14px 16px; position: relative; overflow: hidden;
+    cursor: default;
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1),
+                border-color 0.22s ease,
+                box-shadow 0.22s ease;
+  }
+  .kpi:hover {
+    transform: scale(1.03) translateY(-2px);
+    border-color: rgba(93,202,165,0.35);
+    box-shadow: 0 0 22px rgba(93,202,165,0.08), 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .kpi:hover .kpi-shine { animation-duration: 0.6s !important; }
+
+  @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+  .kpi-shine {
+    position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+    background: linear-gradient(90deg,transparent,rgba(255,255,255,0.04),transparent);
+    background-size: 200% 100%;
+    animation: shimmer 3s ease infinite;
+    pointer-events: none;
+  }
+  .kl { font-size: 10px; color: #4a4945; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .kv { font-size: 20px; font-weight: 500; color: #e8e5df; line-height: 1; font-variant-numeric: tabular-nums; }
+  .kv.accent { color: #5dcaa5; }
+  .kd { font-size: 11px; margin-top: 5px; }
+  .up { color: #5dcaa5; } .down { color: #d85a30; }
+
+  /* ── Chart Grid ── */
+  .cgrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .cc {
+    padding: 14px 16px;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+  .cc:hover {
+    border-color: rgba(255,255,255,0.09);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .ct { font-size: 10px; font-weight: 500; color: #5a5955; margin-bottom: 9px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .cw { position: relative; width: 100%; }
+  .leg { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; font-size: 11px; color: #5a5955; }
+  .ld { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 3px; flex-shrink: 0; }
+
+  /* ── Staggered entrance ── */
+  .stagger { opacity: 0; }
+  @keyframes staggerIn {
+    from { opacity:0; transform:translateY(20px) scale(0.97) }
+    to   { opacity:1; transform:translateY(0) scale(1) }
+  }
+  .stagger.go {
+    animation: staggerIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+
+  /* ── Divider & Summary ── */
+  .divider { border: none; border-top: 1px solid rgba(255,255,255,0.04); margin: 1rem 0; }
+  .slbl { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #3a3935; margin-bottom: 10px; }
+
+  /* ── Highlight / Lowlight Cards ── */
+  .hlg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hc { border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; }
+  .hc.hi { background: rgba(11,26,16,0.85); border: 1px solid rgba(29,110,56,0.4); backdrop-filter: blur(10px); }
+  .hc.lo { background: rgba(26,13,13,0.85); border: 1px solid rgba(74,26,26,0.5); backdrop-filter: blur(10px); }
+  .hh { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .hc.hi .hh { color: #5dcaa5; } .hc.lo .hh { color: #d85a30; }
+  .hi-item { display: flex; gap: 8px; margin-bottom: 8px; align-items: flex-start; }
+  .dot { width: 4px; height: 4px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .hi .dot { background: #5dcaa5; } .lo .dot { background: #d85a30; }
+  .ht { font-size: 12px; color: #a8a5a0; line-height: 1.5; }
+  .ht strong { font-weight: 500; display: block; color: #d8d5cf; font-size: 12px; }
+  .ht span { color: #4a4945; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<!-- Custom cursor -->
+<div id="cursor"></div>
+<div id="cursor-glow"></div>
+
+<!-- Background particle canvas -->
+<canvas id="bgCanvas"></canvas>
+
+<!-- Marquee -->
+<div class="marquee-wrap">
+  <div class="marquee-track" id="marqueeTrack">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<div class="db">
+  <div class="content">
+
+    <!-- Header -->
+    <div class="hdr">
+      <div>
+        <p class="dtitle"><span class="live-dot"></span>Sales performance — ultra dashboard</p>
+        <p class="dsub">2023 – 2024 · Nike · Adidas · Puma · 4 regions · 3 retailers</p>
+      </div>
+      <div class="filters">
+        <label>Year</label>
+        <select id="yf" onchange="render()">
+          <option value="all">All years</option>
+          <option value="2023">2023</option>
+          <option value="2024">2024</option>
+        </select>
+        <label>Region</label>
+        <select id="rf" onchange="render()">
+          <option value="all">All regions</option>
+          <option value="North">North</option>
+          <option value="South">South</option>
+          <option value="East">East</option>
+          <option value="West">West</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kgrid" id="kg"></div>
+
+    <!-- Charts row 1 -->
+    <div class="cgrid2">
+      <div class="cc glass stagger" id="cc0">
+        <p class="ct">Monthly revenue</p>
+        <div class="leg" id="tl"></div>
+        <div class="cw" style="height:185px"><canvas id="tc" role="img" aria-label="Monthly revenue trend"></canvas></div>
+      </div>
+      <div class="cc glass stagger" id="cc1">
+        <p class="ct">Brand revenue</p>
+        <div class="leg" id="bl"></div>
+        <div class="cw" style="height:185px"><canvas id="bc" role="img" aria-label="Revenue by brand"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Charts row 2 -->
+    <div class="cgrid2">
+      <div class="cc glass stagger" id="cc2">
+        <p class="ct">Region share</p>
+        <div class="leg" id="rl"></div>
+        <div class="cw" style="height:165px"><canvas id="rc" role="img" aria-label="Revenue by region"></canvas></div>
+      </div>
+      <div class="cc glass stagger" id="cc3">
+        <p class="ct">Retailer units</p>
+        <div class="leg" id="retl"></div>
+        <div class="cw" style="height:165px"><canvas id="retc" role="img" aria-label="Units per retailer"></canvas></div>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <p class="slbl">Intelligence summary</p>
+    <div class="hlg" id="hlg"></div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ── DATA ── */
+const RAW=`2023-01-02,North,Amazon,Nike,245,28910.50
+2023-01-03,South,Walmart,Adidas,130,12350.00
+2023-01-04,East,Target,Puma,87,6090.00
+2023-01-05,West,Amazon,Nike,312,37440.00
+2023-01-06,North,Walmart,Adidas,205,19475.00
+2023-01-07,South,Target,Puma,154,10780.00
+2023-01-08,East,Amazon,Nike,98,11270.00
+2023-01-09,West,Walmart,Adidas,267,25365.00
+2023-01-10,North,Target,Puma,189,13230.00
+2023-01-11,South,Amazon,Nike,421,50520.00
+2023-01-12,East,Walmart,Adidas,76,7220.00
+2023-01-13,West,Target,Puma,310,21700.00
+2023-01-14,North,Amazon,Nike,55,6325.00
+2023-01-15,South,Walmart,Adidas,388,36860.00
+2023-01-16,East,Target,Puma,123,8610.00
+2023-01-17,West,Amazon,Nike,200,23000.00
+2023-01-18,North,Walmart,Adidas,144,13680.00
+2023-01-19,South,Target,Puma,499,34930.00
+2023-01-20,East,Amazon,Nike,301,34615.00
+2023-01-21,West,Walmart,Adidas,67,6365.00
+2023-01-22,North,Target,Puma,178,12460.00
+2023-01-23,South,Amazon,Nike,256,29440.00
+2023-01-24,East,Walmart,Adidas,333,31635.00
+2023-01-25,West,Target,Puma,112,7840.00
+2023-01-26,North,Amazon,Nike,450,51750.00
+2023-01-27,South,Walmart,Adidas,89,8455.00
+2023-01-28,East,Target,Puma,223,15610.00
+2023-01-29,West,Amazon,Nike,167,19205.00
+2023-01-30,North,Walmart,Adidas,340,32300.00
+2023-01-31,South,Target,Puma,78,5460.00
+2023-02-01,East,Amazon,Nike,415,47725.00
+2023-02-02,West,Walmart,Adidas,196,18620.00
+2023-02-03,North,Target,Puma,287,20090.00
+2023-02-04,South,Amazon,Nike,103,11845.00
+2023-02-05,East,Walmart,Adidas,458,43510.00
+2023-02-06,West,Target,Puma,34,2380.00
+2023-02-07,North,Amazon,Nike,279,32085.00
+2023-02-08,South,Walmart,Adidas,155,14725.00
+2023-02-09,East,Target,Puma,402,28140.00
+2023-02-10,West,Amazon,Nike,228,26220.00
+2023-02-11,North,Walmart,Adidas,319,30305.00
+2023-02-12,South,Target,Puma,64,4480.00
+2023-02-13,East,Amazon,Nike,186,21390.00
+2023-02-14,West,Walmart,Adidas,447,42465.00
+2023-02-15,North,Target,Puma,101,7070.00
+2023-02-16,South,Amazon,Nike,365,41975.00
+2023-02-17,East,Walmart,Adidas,142,13490.00
+2023-02-18,West,Target,Puma,263,18410.00
+2023-02-19,North,Amazon,Nike,88,10120.00
+2023-02-20,South,Walmart,Adidas,394,37430.00
+2023-02-21,East,Target,Puma,211,14770.00
+2023-02-22,West,Amazon,Nike,176,20240.00
+2023-02-23,North,Walmart,Adidas,327,31065.00
+2023-02-24,South,Target,Puma,49,3430.00
+2023-02-25,East,Amazon,Nike,432,49680.00
+2023-02-26,West,Walmart,Adidas,165,15675.00
+2023-02-27,North,Target,Puma,298,20860.00
+2023-02-28,South,Amazon,Nike,117,13455.00
+2023-03-01,East,Walmart,Adidas,471,44745.00
+2023-03-02,West,Target,Puma,43,3010.00
+2023-03-03,North,Amazon,Nike,255,29325.00
+2023-03-04,South,Walmart,Adidas,182,17290.00
+2023-03-05,East,Target,Puma,376,26320.00
+2023-03-06,West,Amazon,Nike,239,27485.00
+2023-03-07,North,Walmart,Adidas,308,29260.00
+2023-03-08,South,Target,Puma,71,4970.00
+2023-03-09,East,Amazon,Nike,193,22195.00
+2023-03-10,West,Walmart,Adidas,436,41420.00
+2023-03-11,North,Target,Puma,129,9030.00
+2023-03-12,South,Amazon,Nike,352,40480.00
+2023-03-13,East,Walmart,Adidas,218,20710.00
+2023-03-14,West,Target,Puma,487,34090.00
+2023-03-15,North,Amazon,Nike,94,10810.00
+2023-03-16,South,Walmart,Adidas,361,34295.00
+2023-03-17,East,Target,Puma,147,10290.00
+2023-03-18,West,Amazon,Nike,283,32545.00
+2023-03-19,North,Walmart,Adidas,426,40470.00
+2023-03-20,South,Target,Puma,56,3920.00
+2023-03-21,East,Amazon,Nike,175,20125.00
+2023-03-22,West,Walmart,Adidas,345,32775.00
+2023-03-23,North,Target,Puma,234,16380.00
+2023-03-24,South,Amazon,Nike,462,53130.00
+2023-03-25,East,Walmart,Adidas,108,10260.00
+2023-03-26,West,Target,Puma,319,22330.00
+2023-03-27,North,Amazon,Nike,151,17365.00
+2023-03-28,South,Walmart,Adidas,404,38380.00
+2023-03-29,East,Target,Puma,85,5950.00
+2023-03-30,West,Amazon,Nike,228,26220.00
+2023-03-31,North,Walmart,Adidas,273,25935.00
+2023-04-01,South,Target,Puma,391,27370.00
+2023-04-02,East,Amazon,Nike,136,15640.00
+2023-04-03,West,Walmart,Adidas,487,46265.00
+2023-04-04,North,Target,Puma,62,4340.00
+2023-04-05,South,Amazon,Nike,349,40135.00
+2023-04-06,East,Walmart,Adidas,197,18715.00
+2023-04-07,West,Target,Puma,276,19320.00
+2023-04-08,North,Amazon,Nike,113,12995.00
+2023-04-09,South,Walmart,Adidas,432,41040.00
+2023-04-10,East,Target,Puma,158,11060.00
+2023-04-11,West,Amazon,Nike,295,33925.00
+2023-04-12,North,Walmart,Adidas,224,21280.00
+2023-04-13,South,Target,Puma,467,32690.00
+2023-04-14,East,Amazon,Nike,79,9085.00
+2023-04-15,West,Walmart,Adidas,356,33820.00
+2023-04-16,North,Target,Puma,143,10010.00
+2023-04-17,South,Amazon,Nike,412,47380.00
+2023-04-18,East,Walmart,Adidas,261,24795.00
+2023-04-19,West,Target,Puma,38,2660.00
+2023-04-20,North,Amazon,Nike,186,21390.00
+2023-04-21,South,Walmart,Adidas,375,35625.00
+2023-04-22,East,Target,Puma,302,21140.00
+2023-04-23,West,Amazon,Nike,121,13915.00
+2023-04-24,North,Walmart,Adidas,448,42560.00
+2023-04-25,South,Target,Puma,93,6510.00
+2023-04-26,East,Amazon,Nike,267,30705.00
+2023-04-27,West,Walmart,Adidas,174,16530.00
+2023-04-28,North,Target,Puma,389,27230.00
+2023-04-29,South,Amazon,Nike,218,25070.00
+2023-04-30,East,Walmart,Adidas,333,31635.00
+2023-05-01,West,Target,Puma,65,4550.00
+2023-05-02,North,Amazon,Nike,421,48415.00
+2023-05-03,South,Walmart,Adidas,152,14440.00
+2023-05-04,East,Target,Puma,244,17080.00
+2023-05-05,West,Amazon,Nike,169,19435.00
+2023-05-06,North,Walmart,Adidas,397,37715.00
+2023-05-07,South,Target,Puma,118,8260.00
+2023-05-08,East,Amazon,Nike,286,32890.00
+2023-05-09,West,Walmart,Adidas,241,22895.00
+2023-05-10,North,Target,Puma,453,31710.00
+2023-05-11,South,Amazon,Nike,107,12305.00
+2023-05-12,East,Walmart,Adidas,368,34960.00
+2023-05-13,West,Target,Puma,192,13440.00
+2023-05-14,North,Amazon,Nike,315,36225.00
+2023-05-15,South,Walmart,Adidas,126,11970.00
+2023-05-16,East,Target,Puma,281,19670.00
+2023-05-17,West,Amazon,Nike,204,23460.00
+2023-05-18,North,Walmart,Adidas,459,43605.00
+2023-05-19,South,Target,Puma,73,5110.00
+2023-05-20,East,Amazon,Nike,342,39330.00
+2023-05-21,West,Walmart,Adidas,187,17765.00
+2023-05-22,North,Target,Puma,416,29120.00
+2023-05-23,South,Amazon,Nike,131,15065.00
+2023-05-24,East,Walmart,Adidas,474,45030.00
+2023-05-25,West,Target,Puma,48,3360.00
+2023-05-26,North,Amazon,Nike,259,29785.00
+2023-05-27,South,Walmart,Adidas,306,29070.00
+2023-05-28,East,Target,Puma,167,11690.00
+2023-05-29,West,Amazon,Nike,378,43470.00
+2023-05-30,North,Walmart,Adidas,213,20235.00
+2023-05-31,South,Target,Puma,432,30240.00
+2023-06-01,East,Amazon,Nike,96,11040.00
+2023-06-02,West,Walmart,Adidas,351,33345.00
+2023-06-03,North,Target,Puma,138,9660.00
+2023-06-04,South,Amazon,Nike,487,55985.00
+2023-06-05,East,Walmart,Adidas,172,16340.00
+2023-06-06,West,Target,Puma,307,21490.00
+2023-06-07,North,Amazon,Nike,225,25875.00
+2023-06-08,South,Walmart,Adidas,446,42370.00
+2023-06-09,East,Target,Puma,81,5670.00
+2023-06-10,West,Amazon,Nike,164,18860.00
+2023-06-11,North,Walmart,Adidas,329,31255.00
+2023-06-12,South,Target,Puma,254,17780.00
+2023-06-13,East,Amazon,Nike,398,45770.00
+2023-06-14,West,Walmart,Adidas,143,13585.00
+2023-06-15,North,Target,Puma,361,25270.00
+2023-06-16,South,Amazon,Nike,188,21620.00
+2023-06-17,East,Walmart,Adidas,427,40565.00
+2023-06-18,West,Target,Puma,59,4130.00
+2023-06-19,North,Amazon,Nike,272,31280.00
+2023-06-20,South,Walmart,Adidas,198,18810.00
+2023-06-21,East,Target,Puma,443,31010.00
+2023-06-22,West,Amazon,Nike,115,13225.00
+2023-06-23,North,Walmart,Adidas,384,36480.00
+2023-06-24,South,Target,Puma,77,5390.00
+2023-06-25,East,Amazon,Nike,321,36915.00
+2023-06-26,West,Walmart,Adidas,236,22420.00
+2023-06-27,North,Target,Puma,176,12320.00
+2023-06-28,South,Amazon,Nike,439,50485.00
+2023-06-29,East,Walmart,Adidas,101,9595.00
+2023-06-30,West,Target,Puma,295,20650.00
+2023-07-01,North,Amazon,Nike,154,17710.00
+2023-07-02,South,Walmart,Adidas,418,39710.00
+2023-07-03,East,Target,Puma,66,4620.00
+2023-07-04,West,Amazon,Nike,283,32545.00
+2023-07-05,North,Walmart,Adidas,347,32965.00
+2023-07-06,South,Target,Puma,122,8540.00
+2023-07-07,East,Amazon,Nike,476,54740.00
+2023-07-08,West,Walmart,Adidas,185,17575.00
+2023-07-09,North,Target,Puma,338,23660.00
+2023-07-10,South,Amazon,Nike,229,26335.00
+2023-07-11,East,Walmart,Adidas,412,39140.00
+2023-07-12,West,Target,Puma,91,6370.00
+2023-07-13,North,Amazon,Nike,267,30705.00
+2023-07-14,South,Walmart,Adidas,456,43320.00
+2023-07-15,East,Target,Puma,143,10010.00
+2023-07-16,West,Amazon,Nike,198,22770.00
+2023-07-17,North,Walmart,Adidas,379,36005.00
+2023-07-18,South,Target,Puma,62,4340.00
+2023-07-19,East,Amazon,Nike,314,36110.00
+2023-07-20,West,Walmart,Adidas,231,21945.00
+2023-07-21,North,Target,Puma,285,19950.00
+2023-07-22,South,Amazon,Nike,447,51405.00
+2023-07-23,East,Walmart,Adidas,108,10260.00
+2023-07-24,West,Target,Puma,376,26320.00
+2023-07-25,North,Amazon,Nike,153,17595.00
+2023-07-26,South,Walmart,Adidas,494,46930.00
+2023-07-27,East,Target,Puma,67,4690.00
+2023-07-28,West,Amazon,Nike,291,33465.00
+2023-07-29,North,Walmart,Adidas,362,34390.00
+2023-07-30,South,Target,Puma,127,8890.00
+2023-07-31,East,Amazon,Nike,483,55545.00
+2023-08-01,West,Walmart,Adidas,176,16720.00
+2023-08-02,North,Target,Puma,321,22470.00
+2023-08-03,South,Amazon,Nike,218,25070.00
+2023-08-04,East,Walmart,Adidas,439,41705.00
+2023-08-05,West,Target,Puma,84,5880.00
+2023-08-06,North,Amazon,Nike,296,34040.00
+2023-08-07,South,Walmart,Adidas,367,34865.00
+2023-08-08,East,Target,Puma,152,10640.00
+2023-08-09,West,Amazon,Nike,213,24495.00
+2023-08-10,North,Walmart,Adidas,451,42845.00
+2023-08-11,South,Target,Puma,79,5530.00
+2023-08-12,East,Amazon,Nike,334,38410.00
+2023-08-13,West,Walmart,Adidas,198,18810.00
+2023-08-14,North,Target,Puma,472,33040.00
+2023-08-15,South,Amazon,Nike,137,15755.00
+2023-08-16,East,Walmart,Adidas,389,36955.00
+2023-08-17,West,Target,Puma,63,4410.00
+2023-08-18,North,Amazon,Nike,251,28865.00
+2023-08-19,South,Walmart,Adidas,482,45790.00
+2023-08-20,East,Target,Puma,116,8120.00
+2023-08-21,West,Amazon,Nike,347,39905.00
+2023-08-22,North,Walmart,Adidas,164,15580.00
+2023-08-23,South,Target,Puma,398,27860.00
+2023-08-24,East,Amazon,Nike,193,22195.00
+2023-08-25,West,Walmart,Adidas,476,45220.00
+2023-08-26,North,Target,Puma,87,6090.00
+2023-08-27,South,Amazon,Nike,312,35880.00
+2023-08-28,East,Walmart,Adidas,231,21945.00
+2023-08-29,West,Target,Puma,427,29890.00
+2023-08-30,North,Amazon,Nike,148,17020.00
+2023-08-31,South,Walmart,Adidas,463,43985.00
+2023-09-01,East,Target,Puma,74,5180.00
+2023-09-02,West,Amazon,Nike,289,33235.00
+2023-09-03,North,Walmart,Adidas,392,37240.00
+2023-09-04,South,Target,Puma,118,8260.00
+2023-09-05,East,Amazon,Nike,376,43240.00
+2023-09-06,West,Walmart,Adidas,153,14535.00
+2023-09-07,North,Target,Puma,284,19880.00
+2023-09-08,South,Amazon,Nike,467,53705.00
+2023-09-09,East,Walmart,Adidas,91,8645.00
+2023-09-10,West,Target,Puma,342,23940.00
+2023-09-11,North,Amazon,Nike,216,24840.00
+2023-09-12,South,Walmart,Adidas,481,45695.00
+2023-09-13,East,Target,Puma,63,4410.00
+2023-09-14,West,Amazon,Nike,327,37605.00
+2023-09-15,North,Walmart,Adidas,174,16530.00
+2023-09-16,South,Target,Puma,419,29330.00
+2023-09-17,East,Amazon,Nike,238,27370.00
+2023-09-18,West,Walmart,Adidas,493,46835.00
+2023-09-19,North,Target,Puma,86,6020.00
+2023-09-20,South,Amazon,Nike,361,41515.00
+2023-09-21,East,Walmart,Adidas,147,13965.00
+2023-09-22,West,Target,Puma,368,25760.00
+2023-09-23,North,Amazon,Nike,204,23460.00
+2023-09-24,South,Walmart,Adidas,462,43890.00
+2023-09-25,East,Target,Puma,78,5460.00
+2023-09-26,West,Amazon,Nike,293,33695.00
+2023-09-27,North,Walmart,Adidas,181,17195.00
+2023-09-28,South,Target,Puma,437,30590.00
+2023-09-29,East,Amazon,Nike,126,14490.00
+2023-09-30,West,Walmart,Adidas,484,45980.00
+2023-10-01,North,Target,Puma,97,6790.00
+2023-10-02,South,Amazon,Nike,348,40020.00
+2023-10-03,East,Walmart,Adidas,212,20140.00
+2023-10-04,West,Target,Puma,383,26810.00
+2023-10-05,North,Amazon,Nike,167,19205.00
+2023-10-06,South,Walmart,Adidas,476,45220.00
+2023-10-07,East,Target,Puma,93,6510.00
+2023-10-08,West,Amazon,Nike,314,36110.00
+2023-10-09,North,Walmart,Adidas,228,21660.00
+2023-10-10,South,Target,Puma,412,28840.00
+2023-10-11,East,Amazon,Nike,179,20585.00
+2023-10-12,West,Walmart,Adidas,463,43985.00
+2023-10-13,North,Target,Puma,64,4480.00
+2023-10-14,South,Amazon,Nike,397,45655.00
+2023-10-15,East,Walmart,Adidas,147,13965.00
+2023-10-16,West,Target,Puma,468,32760.00
+2023-10-17,North,Amazon,Nike,218,25070.00
+2023-10-18,South,Walmart,Adidas,489,46455.00
+2023-10-19,East,Target,Puma,72,5040.00
+2023-10-20,West,Amazon,Nike,336,38640.00
+2023-10-21,North,Walmart,Adidas,183,17385.00
+2023-10-22,South,Target,Puma,421,29470.00
+2023-10-23,East,Amazon,Nike,143,16445.00
+2023-10-24,West,Walmart,Adidas,474,45030.00
+2023-10-25,North,Target,Puma,81,5670.00
+2023-10-26,South,Amazon,Nike,362,41630.00
+2023-10-27,East,Walmart,Adidas,192,18240.00
+2023-10-28,West,Target,Puma,447,31290.00
+2023-10-29,North,Amazon,Nike,127,14605.00
+2023-10-30,South,Walmart,Adidas,486,46170.00
+2023-10-31,East,Target,Puma,68,4760.00
+2023-11-01,West,Amazon,Nike,318,36570.00
+2023-11-02,North,Walmart,Adidas,196,18620.00
+2023-11-03,South,Target,Puma,432,30240.00
+2023-11-04,East,Amazon,Nike,154,17710.00
+2023-11-05,West,Walmart,Adidas,487,46265.00
+2023-11-06,North,Target,Puma,73,5110.00
+2023-11-07,South,Amazon,Nike,374,43010.00
+2023-11-08,East,Walmart,Adidas,218,20710.00
+2023-11-09,West,Target,Puma,413,28910.00
+2023-11-10,North,Amazon,Nike,139,15985.00
+2023-11-11,South,Walmart,Adidas,476,45220.00
+2023-11-12,East,Target,Puma,84,5880.00
+2023-11-13,West,Amazon,Nike,312,35880.00
+2023-11-14,North,Walmart,Adidas,207,19665.00
+2023-11-15,South,Target,Puma,448,31360.00
+2023-11-16,East,Amazon,Nike,163,18745.00
+2023-11-17,West,Walmart,Adidas,493,46835.00
+2023-11-18,North,Target,Puma,78,5460.00
+2023-11-19,South,Amazon,Nike,389,44735.00
+2023-11-20,East,Walmart,Adidas,174,16530.00
+2023-11-21,West,Target,Puma,427,29890.00
+2023-11-22,North,Amazon,Nike,148,17020.00
+2023-11-23,South,Walmart,Adidas,481,45695.00
+2023-11-24,East,Target,Puma,69,4830.00
+2023-11-25,West,Amazon,Nike,327,37605.00
+2023-11-26,North,Walmart,Adidas,191,18145.00
+2023-11-27,South,Target,Puma,463,32410.00
+2023-11-28,East,Amazon,Nike,138,15870.00
+2023-11-29,West,Walmart,Adidas,487,46265.00
+2023-11-30,North,Target,Puma,84,5880.00
+2023-12-01,South,Amazon,Nike,376,43240.00
+2023-12-02,East,Walmart,Adidas,193,18335.00
+2023-12-03,West,Target,Puma,437,30590.00
+2023-12-04,North,Amazon,Nike,152,17480.00
+2023-12-05,South,Walmart,Adidas,484,45980.00
+2023-12-06,East,Target,Puma,74,5180.00
+2023-12-07,West,Amazon,Nike,318,36570.00
+2023-12-08,North,Walmart,Adidas,196,18620.00
+2023-12-09,South,Target,Puma,448,31360.00
+2023-12-10,East,Amazon,Nike,163,18745.00
+2023-12-11,West,Walmart,Adidas,487,46265.00
+2023-12-12,North,Target,Puma,78,5460.00
+2023-12-13,South,Amazon,Nike,374,43010.00
+2023-12-14,East,Walmart,Adidas,197,18715.00
+2023-12-15,West,Target,Puma,424,29680.00
+2023-12-16,North,Amazon,Nike,139,15985.00
+2023-12-17,South,Walmart,Adidas,479,45505.00
+2023-12-18,East,Target,Puma,83,5810.00
+2023-12-19,West,Amazon,Nike,309,35535.00
+2023-12-20,North,Walmart,Adidas,204,19380.00
+2023-12-21,South,Target,Puma,441,30870.00
+2023-12-22,East,Amazon,Nike,152,17480.00
+2023-12-23,West,Walmart,Adidas,476,45220.00
+2023-12-24,North,Target,Puma,69,4830.00
+2023-12-25,South,Amazon,Nike,361,41515.00
+2023-12-26,East,Walmart,Adidas,188,17860.00
+2023-12-27,West,Target,Puma,416,29120.00
+2023-12-28,North,Amazon,Nike,143,16445.00
+2023-12-29,South,Walmart,Adidas,487,46265.00
+2023-12-30,East,Target,Puma,74,5180.00
+2023-12-31,West,Amazon,Nike,316,36340.00
+2024-01-01,North,Walmart,Adidas,189,17955.00
+2024-01-02,South,Target,Puma,447,31290.00
+2024-01-03,East,Amazon,Nike,118,13570.00
+2024-01-04,West,Walmart,Adidas,381,36195.00
+2024-01-05,North,Target,Puma,84,5880.00
+2024-01-06,South,Amazon,Nike,349,40135.00
+2024-01-07,East,Walmart,Adidas,163,15485.00
+2024-01-08,West,Target,Puma,418,29260.00
+2024-01-09,North,Amazon,Nike,127,14605.00
+2024-01-10,South,Walmart,Adidas,463,43985.00
+2024-01-11,East,Target,Puma,79,5530.00
+2024-01-12,West,Amazon,Nike,298,34270.00
+2024-01-13,North,Walmart,Adidas,182,17290.00
+2024-01-14,South,Target,Puma,441,30870.00
+2024-01-15,East,Amazon,Nike,143,16445.00
+2024-01-16,West,Walmart,Adidas,447,42465.00
+2024-01-17,North,Target,Puma,68,4760.00
+2024-01-18,South,Amazon,Nike,362,41630.00
+2024-01-19,East,Walmart,Adidas,187,17765.00
+2024-01-20,West,Target,Puma,423,29610.00
+2024-01-21,North,Amazon,Nike,138,15870.00
+2024-01-22,South,Walmart,Adidas,479,45505.00
+2024-01-23,East,Target,Puma,74,5180.00
+2024-01-24,West,Amazon,Nike,317,36455.00
+2024-01-25,North,Walmart,Adidas,193,18335.00
+2024-01-26,South,Target,Puma,447,31290.00
+2024-01-27,East,Amazon,Nike,118,13570.00
+2024-01-28,West,Walmart,Adidas,463,43985.00
+2024-01-29,North,Target,Puma,79,5530.00
+2024-01-30,South,Amazon,Nike,347,39905.00
+2024-01-31,East,Walmart,Adidas,162,15390.00
+2024-02-01,West,Target,Puma,418,29260.00
+2024-02-02,North,Amazon,Nike,127,14605.00
+2024-02-03,South,Walmart,Adidas,478,45410.00
+2024-02-04,East,Target,Puma,73,5110.00
+2024-02-05,West,Amazon,Nike,302,34730.00
+2024-02-06,North,Walmart,Adidas,187,17765.00
+2024-02-07,South,Target,Puma,447,31290.00
+2024-02-08,East,Amazon,Nike,138,15870.00
+2024-02-09,West,Walmart,Adidas,453,43035.00
+2024-02-10,North,Target,Puma,84,5880.00
+2024-02-11,South,Amazon,Nike,362,41630.00
+2024-02-12,East,Walmart,Adidas,187,17765.00
+2024-02-13,West,Target,Puma,428,29960.00
+2024-02-14,North,Amazon,Nike,143,16445.00
+2024-02-15,South,Walmart,Adidas,479,45505.00
+2024-02-16,East,Target,Puma,79,5530.00
+2024-02-17,West,Amazon,Nike,316,36340.00
+2024-02-18,North,Walmart,Adidas,191,18145.00
+2024-02-19,South,Target,Puma,441,30870.00
+2024-02-20,East,Amazon,Nike,152,17480.00
+2024-02-21,West,Walmart,Adidas,453,43035.00
+2024-02-22,North,Target,Puma,74,5180.00
+2024-02-23,South,Amazon,Nike,347,39905.00
+2024-02-24,East,Walmart,Adidas,176,16720.00
+2024-02-25,West,Target,Puma,413,28910.00
+2024-02-26,North,Amazon,Nike,129,14835.00
+2024-02-27,South,Walmart,Adidas,471,44745.00
+2024-02-28,East,Target,Puma,68,4760.00
+2024-02-29,West,Amazon,Nike,294,33810.00
+2024-03-01,North,Walmart,Adidas,183,17385.00
+2024-03-02,South,Target,Puma,437,30590.00
+2024-03-03,East,Amazon,Nike,148,17020.00
+2024-03-04,West,Walmart,Adidas,447,42465.00
+2024-03-05,North,Target,Puma,79,5530.00
+2024-03-06,South,Amazon,Nike,362,41630.00
+2024-03-07,East,Walmart,Adidas,193,18335.00
+2024-03-08,West,Target,Puma,423,29610.00
+2024-03-09,North,Amazon,Nike,138,15870.00
+2024-03-10,South,Walmart,Adidas,479,45505.00
+2024-03-11,East,Target,Puma,74,5180.00
+2024-03-12,West,Amazon,Nike,308,35420.00
+2024-03-13,North,Walmart,Adidas,189,17955.00
+2024-03-14,South,Target,Puma,448,31360.00
+2024-03-15,East,Amazon,Nike,158,18170.00
+2024-03-16,West,Walmart,Adidas,453,43035.00
+2024-03-17,North,Target,Puma,84,5880.00
+2024-03-18,South,Amazon,Nike,368,42320.00
+2024-03-19,East,Walmart,Adidas,183,17385.00
+2024-03-20,West,Target,Puma,427,29890.00
+2024-03-21,North,Amazon,Nike,143,16445.00
+2024-03-22,South,Walmart,Adidas,484,45980.00
+2024-03-23,East,Target,Puma,69,4830.00
+2024-03-24,West,Amazon,Nike,299,34385.00
+2024-03-25,North,Walmart,Adidas,191,18145.00
+2024-03-26,South,Target,Puma,441,30870.00
+2024-03-27,East,Amazon,Nike,148,17020.00
+2024-03-28,West,Walmart,Adidas,459,43605.00
+2024-03-29,North,Target,Puma,79,5530.00
+2024-03-30,South,Amazon,Nike,347,39905.00
+2024-03-31,East,Walmart,Adidas,168,15960.00
+2024-04-01,West,Target,Puma,418,29260.00
+2024-04-02,North,Amazon,Nike,127,14605.00
+2024-04-03,South,Walmart,Adidas,478,45410.00
+2024-04-04,East,Target,Puma,73,5110.00
+2024-04-05,West,Amazon,Nike,303,34845.00
+2024-04-06,North,Walmart,Adidas,187,17765.00
+2024-04-07,South,Target,Puma,447,31290.00
+2024-04-08,East,Amazon,Nike,138,15870.00
+2024-04-09,West,Walmart,Adidas,453,43035.00
+2024-04-10,North,Target,Puma,84,5880.00
+2024-04-11,South,Amazon,Nike,362,41630.00
+2024-04-12,East,Walmart,Adidas,187,17765.00
+2024-04-13,West,Target,Puma,428,29960.00
+2024-04-14,North,Amazon,Nike,143,16445.00
+2024-04-15,South,Walmart,Adidas,479,45505.00
+2024-04-16,East,Target,Puma,79,5530.00
+2024-04-17,West,Amazon,Nike,317,36455.00
+2024-04-18,North,Walmart,Adidas,193,18335.00
+2024-04-19,South,Target,Puma,441,30870.00
+2024-04-20,East,Amazon,Nike,152,17480.00
+2024-04-21,West,Walmart,Adidas,447,42465.00
+2024-04-22,North,Target,Puma,68,4760.00
+2024-04-23,South,Amazon,Nike,347,39905.00
+2024-04-24,East,Walmart,Adidas,172,16340.00
+2024-04-25,West,Target,Puma,413,28910.00
+2024-04-26,North,Amazon,Nike,129,14835.00
+2024-04-27,South,Walmart,Adidas,471,44745.00
+2024-04-28,East,Target,Puma,68,4760.00
+2024-04-29,West,Amazon,Nike,295,33925.00
+2024-04-30,North,Walmart,Adidas,183,17385.00
+2024-05-01,South,Target,Puma,437,30590.00
+2024-05-02,East,Amazon,Nike,148,17020.00
+2024-05-03,West,Walmart,Adidas,447,42465.00
+2024-05-04,North,Target,Puma,79,5530.00
+2024-05-05,South,Amazon,Nike,362,41630.00
+2024-05-06,East,Walmart,Adidas,193,18335.00
+2024-05-07,West,Target,Puma,423,29610.00
+2024-05-08,North,Amazon,Nike,138,15870.00
+2024-05-09,South,Walmart,Adidas,479,45505.00
+2024-05-10,East,Target,Puma,74,5180.00
+2024-05-11,West,Amazon,Nike,308,35420.00
+2024-05-12,North,Walmart,Adidas,189,17955.00
+2024-05-13,South,Target,Puma,448,31360.00
+2024-05-14,East,Amazon,Nike,158,18170.00
+2024-05-15,West,Walmart,Adidas,453,43035.00
+2024-05-16,North,Target,Puma,84,5880.00
+2024-05-17,South,Amazon,Nike,368,42320.00
+2024-05-18,East,Walmart,Adidas,183,17385.00
+2024-05-19,West,Target,Puma,427,29890.00
+2024-05-20,North,Amazon,Nike,143,16445.00
+2024-05-21,South,Walmart,Adidas,484,45980.00
+2024-05-22,East,Target,Puma,69,4830.00
+2024-05-23,West,Amazon,Nike,299,34385.00
+2024-05-24,North,Walmart,Adidas,191,18145.00
+2024-05-25,South,Target,Puma,441,30870.00
+2024-05-26,East,Amazon,Nike,148,17020.00
+2024-05-27,West,Walmart,Adidas,459,43605.00
+2024-05-28,North,Target,Puma,79,5530.00
+2024-05-29,South,Amazon,Nike,347,39905.00
+2024-05-30,East,Walmart,Adidas,168,15960.00
+2024-05-31,West,Target,Puma,418,29260.00
+2024-06-01,North,Amazon,Nike,127,14605.00
+2024-06-02,South,Walmart,Adidas,478,45410.00
+2024-06-03,East,Target,Puma,73,5110.00
+2024-06-04,West,Amazon,Nike,303,34845.00
+2024-06-05,North,Walmart,Adidas,187,17765.00
+2024-06-06,South,Target,Puma,447,31290.00
+2024-06-07,East,Amazon,Nike,138,15870.00
+2024-06-08,West,Walmart,Adidas,453,43035.00
+2024-06-09,North,Target,Puma,84,5880.00
+2024-06-10,South,Amazon,Nike,362,41630.00
+2024-06-11,East,Walmart,Adidas,187,17765.00
+2024-06-12,West,Target,Puma,428,29960.00
+2024-06-13,North,Amazon,Nike,143,16445.00
+2024-06-14,South,Walmart,Adidas,479,45505.00
+2024-06-15,East,Target,Puma,79,5530.00
+2024-06-16,West,Amazon,Nike,316,36340.00
+2024-06-17,North,Walmart,Adidas,191,18145.00
+2024-06-18,South,Target,Puma,441,30870.00
+2024-06-19,East,Amazon,Nike,152,17480.00
+2024-06-20,West,Walmart,Adidas,453,43035.00
+2024-06-21,North,Target,Puma,74,5180.00
+2024-06-22,South,Amazon,Nike,347,39905.00
+2024-06-23,East,Walmart,Adidas,176,16720.00
+2024-06-24,West,Target,Puma,413,28910.00
+2024-06-25,North,Amazon,Nike,129,14835.00
+2024-06-26,South,Walmart,Adidas,487,46265.00
+2024-06-27,East,Target,Puma,71,4970.00
+2024-06-28,West,Amazon,Nike,299,34385.00
+2024-06-29,North,Walmart,Adidas,186,17670.00
+2024-06-30,South,Target,Puma,447,31290.00
+2024-07-01,East,Amazon,Nike,117,13455.00
+2024-07-02,West,Walmart,Adidas,372,35340.00
+2024-07-03,North,Target,Puma,96,6720.00
+2024-07-04,South,Amazon,Nike,358,41170.00
+2024-07-05,East,Walmart,Adidas,179,17005.00
+2024-07-06,West,Target,Puma,423,29610.00
+2024-07-07,North,Amazon,Nike,134,15410.00
+2024-07-08,South,Walmart,Adidas,461,43795.00
+2024-07-09,East,Target,Puma,83,5810.00
+2024-07-10,West,Amazon,Nike,289,33235.00
+2024-07-11,North,Walmart,Adidas,207,19665.00
+2024-07-12,South,Target,Puma,374,26180.00
+2024-07-13,East,Amazon,Nike,158,18170.00
+2024-07-14,West,Walmart,Adidas,449,42655.00
+2024-07-15,North,Target,Puma,67,4690.00
+2024-07-16,South,Amazon,Nike,326,37490.00
+2024-07-17,East,Walmart,Adidas,193,18335.00
+2024-07-18,West,Target,Puma,416,29120.00
+2024-07-19,North,Amazon,Nike,142,16330.00
+2024-07-20,South,Walmart,Adidas,478,45410.00
+2024-07-21,East,Target,Puma,77,5390.00
+2024-07-22,West,Amazon,Nike,304,34960.00
+2024-07-23,North,Walmart,Adidas,169,16055.00
+2024-07-24,South,Target,Puma,391,27370.00
+2024-07-25,East,Amazon,Nike,126,14490.00
+2024-07-26,West,Walmart,Adidas,463,43985.00
+2024-07-27,North,Target,Puma,84,5880.00
+2024-07-28,South,Amazon,Nike,347,39905.00
+2024-07-29,East,Walmart,Adidas,178,16910.00
+2024-07-30,West,Target,Puma,412,28840.00
+2024-07-31,North,Amazon,Nike,153,17595.00
+2024-08-01,South,Walmart,Adidas,483,45885.00
+2024-08-02,East,Target,Puma,72,5040.00
+2024-08-03,West,Amazon,Nike,319,36685.00
+2024-08-04,North,Walmart,Adidas,197,18715.00
+2024-08-05,South,Target,Puma,268,18760.00
+2024-08-06,East,Amazon,Nike,143,16445.00
+2024-08-07,West,Walmart,Adidas,441,41895.00
+2024-08-08,North,Target,Puma,89,6230.00
+2024-08-09,South,Amazon,Nike,376,43240.00
+2024-08-10,East,Walmart,Adidas,162,15390.00
+2024-08-11,West,Target,Puma,433,30310.00
+2024-08-12,North,Amazon,Nike,121,13915.00
+2024-08-13,South,Walmart,Adidas,479,45505.00
+2024-08-14,East,Target,Puma,68,4760.00
+2024-08-15,West,Amazon,Nike,294,33810.00
+2024-08-16,North,Walmart,Adidas,183,17385.00
+2024-08-17,South,Target,Puma,356,24920.00
+2024-08-18,East,Amazon,Nike,158,18170.00
+2024-08-19,West,Walmart,Adidas,447,42465.00
+2024-08-20,North,Target,Puma,84,5880.00
+2024-08-21,South,Amazon,Nike,363,41745.00
+2024-08-22,East,Walmart,Adidas,172,16340.00
+2024-08-23,West,Target,Puma,419,29330.00
+2024-08-24,North,Amazon,Nike,137,15755.00
+2024-08-25,South,Walmart,Adidas,492,46740.00
+2024-08-26,East,Target,Puma,61,4270.00
+2024-08-27,West,Amazon,Nike,287,33005.00
+2024-08-28,North,Walmart,Adidas,196,18620.00
+2024-08-29,South,Target,Puma,374,26180.00
+2024-08-30,East,Amazon,Nike,148,17020.00
+2024-08-31,West,Walmart,Adidas,453,43035.00
+2024-09-01,North,Target,Puma,78,5460.00
+2024-09-02,South,Amazon,Nike,347,39905.00
+2024-09-03,East,Walmart,Adidas,189,17955.00
+2024-09-04,West,Target,Puma,412,28840.00
+2024-09-05,North,Amazon,Nike,163,18745.00
+2024-09-06,South,Walmart,Adidas,471,44745.00
+2024-09-07,East,Target,Puma,86,6020.00
+2024-09-08,West,Amazon,Nike,316,36340.00
+2024-09-09,North,Walmart,Adidas,204,19380.00
+2024-09-10,South,Target,Puma,279,19530.00
+2024-09-11,East,Amazon,Nike,141,16215.00
+2024-09-12,West,Walmart,Adidas,437,41515.00
+2024-09-13,North,Target,Puma,93,6510.00
+2024-09-14,South,Amazon,Nike,378,43470.00
+2024-09-15,East,Walmart,Adidas,162,15390.00
+2024-09-16,West,Target,Puma,421,29470.00
+2024-09-17,North,Amazon,Nike,127,14605.00
+2024-09-18,South,Walmart,Adidas,483,45885.00
+2024-09-19,East,Target,Puma,74,5180.00
+2024-09-20,West,Amazon,Nike,302,34730.00
+2024-09-21,North,Walmart,Adidas,176,16720.00
+2024-09-22,South,Target,Puma,389,27230.00
+2024-09-23,East,Amazon,Nike,152,17480.00
+2024-09-24,West,Walmart,Adidas,459,43605.00
+2024-09-25,North,Target,Puma,69,4830.00
+2024-09-26,South,Amazon,Nike,319,36685.00
+2024-09-27,East,Walmart,Adidas,191,18145.00
+2024-09-28,West,Target,Puma,436,30520.00
+2024-09-29,North,Amazon,Nike,138,15870.00
+2024-09-30,South,Walmart,Adidas,476,45220.00
+2024-10-01,East,Target,Puma,82,5740.00
+2024-10-02,West,Amazon,Nike,327,37605.00
+2024-10-03,North,Walmart,Adidas,194,18430.00
+2024-10-04,South,Target,Puma,281,19670.00
+2024-10-05,East,Amazon,Nike,149,17135.00
+2024-10-06,West,Walmart,Adidas,443,42085.00
+2024-10-07,North,Target,Puma,76,5320.00
+2024-10-08,South,Amazon,Nike,362,41630.00
+2024-10-09,East,Walmart,Adidas,183,17385.00
+2024-10-10,West,Target,Puma,418,29260.00
+2024-10-11,North,Amazon,Nike,131,15065.00
+2024-10-12,South,Walmart,Adidas,487,46265.00
+2024-10-13,East,Target,Puma,73,5110.00
+2024-10-14,West,Amazon,Nike,309,35535.00
+2024-10-15,North,Walmart,Adidas,168,15960.00
+2024-10-16,South,Target,Puma,374,26180.00
+2024-10-17,East,Amazon,Nike,143,16445.00
+2024-10-18,West,Walmart,Adidas,453,43035.00
+2024-10-19,North,Target,Puma,87,6090.00
+2024-10-20,South,Amazon,Nike,376,43240.00
+2024-10-21,East,Walmart,Adidas,172,16340.00
+2024-10-22,West,Target,Puma,423,29610.00
+2024-10-23,North,Amazon,Nike,118,13570.00
+2024-10-24,South,Walmart,Adidas,479,45505.00
+2024-10-25,East,Target,Puma,64,4480.00
+2024-10-26,West,Amazon,Nike,298,34270.00
+2024-10-27,North,Walmart,Adidas,189,17955.00
+2024-10-28,South,Target,Puma,356,24920.00
+2024-10-29,East,Amazon,Nike,154,17710.00
+2024-10-30,West,Walmart,Adidas,461,43795.00
+2024-10-31,North,Target,Puma,79,5530.00
+2024-11-01,South,Amazon,Nike,347,39905.00
+2024-11-02,East,Walmart,Adidas,193,18335.00
+2024-11-03,West,Target,Puma,412,28840.00
+2024-11-04,North,Amazon,Nike,163,18745.00
+2024-11-05,South,Walmart,Adidas,471,44745.00
+2024-11-06,East,Target,Puma,86,6020.00
+2024-11-07,West,Amazon,Nike,316,36340.00
+2024-11-08,North,Walmart,Adidas,204,19380.00
+2024-11-09,South,Target,Puma,279,19530.00
+2024-11-10,East,Amazon,Nike,141,16215.00
+2024-11-11,West,Walmart,Adidas,437,41515.00
+2024-11-12,North,Target,Puma,93,6510.00
+2024-11-13,South,Amazon,Nike,378,43470.00
+2024-11-14,East,Walmart,Adidas,162,15390.00
+2024-11-15,West,Target,Puma,421,29470.00
+2024-11-16,North,Amazon,Nike,136,15640.00
+2024-11-17,South,Walmart,Adidas,478,45410.00
+2024-11-18,East,Target,Puma,68,4760.00
+2024-11-19,West,Amazon,Nike,318,36570.00
+2024-11-20,North,Walmart,Adidas,176,16720.00
+2024-11-21,South,Target,Puma,389,27230.00
+2024-11-22,East,Amazon,Nike,149,17135.00
+2024-11-23,West,Walmart,Adidas,453,43035.00
+2024-11-24,North,Target,Puma,82,5740.00
+2024-11-25,South,Amazon,Nike,362,41630.00
+2024-11-26,East,Walmart,Adidas,187,17765.00
+2024-11-27,West,Target,Puma,437,30590.00
+2024-11-28,North,Amazon,Nike,124,14260.00
+2024-11-29,South,Walmart,Adidas,492,46740.00
+2024-11-30,East,Target,Puma,71,4970.00
+2024-12-01,West,Amazon,Nike,336,38640.00
+2024-12-02,North,Walmart,Adidas,191,18145.00
+2024-12-03,South,Target,Puma,276,19320.00
+2024-12-04,East,Amazon,Nike,158,18170.00
+2024-12-05,West,Walmart,Adidas,447,42465.00
+2024-12-06,North,Target,Puma,87,6090.00
+2024-12-07,South,Amazon,Nike,379,43585.00
+2024-12-08,East,Walmart,Adidas,162,15390.00
+2024-12-09,West,Target,Puma,418,29260.00
+2024-12-10,North,Amazon,Nike,143,16445.00
+2024-12-11,South,Walmart,Adidas,487,46265.00
+2024-12-12,East,Target,Puma,74,5180.00
+2024-12-13,West,Amazon,Nike,316,36340.00
+2024-12-14,North,Walmart,Adidas,204,19380.00
+2024-12-15,South,Target,Puma,291,20370.00
+2024-12-16,East,Amazon,Nike,148,17020.00
+2024-12-17,West,Walmart,Adidas,453,43035.00
+2024-12-18,North,Target,Puma,79,5530.00
+2024-12-19,South,Amazon,Nike,368,42320.00
+2024-12-20,East,Walmart,Adidas,183,17385.00
+2024-12-21,West,Target,Puma,427,29890.00
+2024-12-22,North,Amazon,Nike,137,15755.00
+2024-12-23,South,Walmart,Adidas,479,45505.00
+2024-12-24,East,Target,Puma,66,4620.00
+2024-12-25,West,Amazon,Nike,304,34960.00
+2024-12-26,North,Walmart,Adidas,196,18620.00
+2024-12-27,South,Target,Puma,378,26460.00
+2024-12-28,East,Amazon,Nike,152,17480.00
+2024-12-29,West,Walmart,Adidas,461,43795.00
+2024-12-30,North,Target,Puma,84,5880.00
+2024-12-31,South,Amazon,Nike,347,39905.00`;
+
+const allRows = RAW.trim().split('\n').map(l => {
+  const [date,region,retailer,brand,units,revenue] = l.split(',');
+  return { date, region, retailer, brand, units:+units, revenue:+revenue,
+           year:date.slice(0,4), month:+date.slice(5,7) };
+});
+
+/* ── COLORS ── */
+const BC = { Nike:'#5dcaa5', Adidas:'#7F77DD', Puma:'#D85A30' };
+const RC = { North:'#5dcaa5', South:'#EF9F27', East:'#7F77DD', West:'#D85A30' };
+const RTC = { Amazon:'#5dcaa5', Walmart:'#7F77DD', Target:'#D85A30' };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const GC = 'rgba(255,255,255,0.05)';
+const TC = '#3a3935';
+let charts = {};
+
+/* ── CURSOR ── */
+const cursor = document.getElementById('cursor');
+const cursorGlow = document.getElementById('cursor-glow');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
+  cursorGlow.style.left = e.clientX + 'px';
+  cursorGlow.style.top  = e.clientY + 'px';
+});
+document.addEventListener('mousedown', () => cursor.style.transform = 'translate(-50%,-50%) scale(0.6)');
+document.addEventListener('mouseup',   () => cursor.style.transform = 'translate(-50%,-50%) scale(1)');
+
+/* ── PARTICLE BG ── */
+(function initBg(){
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, pts = [];
+  function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  for(let i=0;i<45;i++) pts.push({
+    x:Math.random()*1400, y:Math.random()*900,
+    vx:(Math.random()-.5)*.15, vy:(Math.random()-.5)*.15,
+    r:Math.random()*1.3+.3, op:Math.random()*.22+.04
+  });
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>W) p.vx*=-1;
+      if(p.y<0||p.y>H) p.vy*=-1;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(93,202,165,${p.op})`; ctx.fill();
+    });
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+      const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<95){
+        ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y);
+        ctx.strokeStyle=`rgba(93,202,165,${.055*(1-d/95)})`; ctx.lineWidth=.5; ctx.stroke();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ── HELPERS ── */
+function fmtM(v){ return '$'+Math.round(v/1000)+'K'; }
+function fmtB(v){ return '$'+(v/1000000).toFixed(2)+'M'; }
+function gf(){
+  const y=document.getElementById('yf').value, r=document.getElementById('rf').value;
+  return allRows.filter(d=>(y==='all'||d.year===y)&&(r==='all'||d.region===r));
+}
+function animCount(el,target,pre,suf,dur){
+  const start=Date.now();
+  (function tick(){
+    const p=Math.min(1,(Date.now()-start)/dur);
+    const e=1-Math.pow(1-p,3);
+    const v=Math.round(target*e);
+    el.textContent=pre+(v>=1000?v.toLocaleString():v)+suf;
+    if(p<1) requestAnimationFrame(tick);
+  })();
+}
+function mkLeg(id,items){
+  document.getElementById(id).innerHTML=items.map(([l,c])=>
+    `<span style="display:flex;align-items:center;gap:3px"><span class="ld" style="background:${c}"></span>${l}</span>`
+  ).join('');
+}
+function dc(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+function triggerStagger(){
+  document.querySelectorAll('.stagger').forEach((el,i)=>{
+    el.classList.remove('go'); void el.offsetWidth;
+    el.style.animationDelay = (i*0.09)+'s';
+    el.classList.add('go');
+  });
+}
+
+/* ── MARQUEE ── */
+function buildMarquee(data){
+  const brands=['Nike','Adidas','Puma'];
+  const regions=['North','South','East','West'];
+  const bRevs=Object.fromEntries(brands.map(b=>[b,data.filter(d=>d.brand===b).reduce((s,d)=>s+d.revenue,0)]));
+  const rRevs=Object.fromEntries(regions.map(r=>[r,data.filter(d=>d.region===r).reduce((s,d)=>s+d.revenue,0)]));
+  const totalRev=data.reduce((s,d)=>s+d.revenue,0);
+  const totalUnits=data.reduce((s,d)=>s+d.units,0);
+  const topBrand=brands.sort((a,b)=>bRevs[b]-bRevs[a])[0];
+  const topRegion=regions.sort((a,b)=>rRevs[b]-rRevs[a])[0];
+  const botRegion=regions.sort((a,b)=>rRevs[a]-rRevs[b])[0];
+  const nikeShare=Math.round(bRevs['Nike']/totalRev*100);
+  const items=[
+    {txt:`${topBrand} dominates at ${nikeShare}% revenue share`, cls:'pos'},
+    {txt:`Total portfolio: ${fmtB(totalRev)} across ${totalUnits.toLocaleString()} units`, cls:'neu'},
+    {txt:`${topRegion} region leads all geographies`, cls:'pos'},
+    {txt:`${botRegion} region needs strategic attention`, cls:'neg'},
+    {txt:`Avg order value: $${Math.round(totalRev/totalUnits)} per unit`, cls:'neu'},
+    {txt:`Puma avg unit price trails Nike by 30%+`, cls:'neg'},
+    {txt:`Adidas holding steady across all channels`, cls:'neu'},
+    {txt:`${topBrand} dominates at ${nikeShare}% revenue share`, cls:'pos'},
+    {txt:`Total portfolio: ${fmtB(totalRev)} across ${totalUnits.toLocaleString()} units`, cls:'neu'},
+    {txt:`${topRegion} region leads all geographies`, cls:'pos'},
+    {txt:`${botRegion} region needs strategic attention`, cls:'neg'},
+    {txt:`Avg order value: $${Math.round(totalRev/totalUnits)} per unit`, cls:'neu'},
+    {txt:`Puma avg unit price trails Nike by 30%+`, cls:'neg'},
+    {txt:`Adidas holding steady across all channels`, cls:'neu'},
+  ];
+  document.getElementById('marqueeTrack').innerHTML = items.map(it=>
+    `<span class="marquee-item"><span class="${it.cls}">${it.txt}</span><span class="sep">·</span></span>`
+  ).join('');
+}
+
+/* ── BASE CHART OPTIONS ── */
+function baseOpts(){
+  return { responsive:true, maintainAspectRatio:false,
+    animation:{ duration:750, easing:'easeInOutQuart' },
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ ticks:{color:TC,font:{size:10}}, grid:{color:GC}, border:{color:'transparent'} },
+      y:{ ticks:{color:TC,font:{size:10}}, grid:{color:GC}, border:{color:'transparent'} }
+    }
+  };
+}
+
+/* ── RENDER ── */
+function render(){
+  const data = gf();
+  renderKPIs(data);
+  renderTrend(data);
+  renderBrand(data);
+  renderRegion(data);
+  renderRetailer(data);
+  renderHL(data);
+  buildMarquee(data);
+  triggerStagger();
+}
+
+function renderKPIs(data){
+  const rev=data.reduce((s,d)=>s+d.revenue,0);
+  const units=data.reduce((s,d)=>s+d.units,0);
+  const aov=rev/units;
+  const days=new Set(data.map(d=>d.date)).size;
+  const y=document.getElementById('yf').value;
+  let d1='',d2='';
+  if(y==='2024'){
+    const d23=allRows.filter(d=>d.year==='2023');
+    const r23=d23.reduce((s,d)=>s+d.revenue,0);
+    const u23=d23.reduce((s,d)=>s+d.units,0);
+    const p=((rev-r23)/r23*100).toFixed(1);
+    const up=((units-u23)/u23*100).toFixed(1);
+    d1=`<div class="kd ${+p>=0?'up':'down'}">${+p>=0?'▲':'▼'} ${Math.abs(p)}% vs 2023</div>`;
+    d2=`<div class="kd ${+up>=0?'up':'down'}">${+up>=0?'▲':'▼'} ${Math.abs(up)}% vs 2023</div>`;
+  }
+  const kpis=[
+    {label:'Total revenue',id:'kv0',target:Math.round(rev/1000),pre:'$',suf:'K',delta:d1,accent:true},
+    {label:'Units sold',id:'kv1',target:units,pre:'',suf:'',delta:d2,accent:false},
+    {label:'Avg order value',id:'kv2',target:Math.round(aov),pre:'$',suf:'',delta:'',accent:false},
+    {label:'Revenue / day',id:'kv3',target:Math.round(rev/days/1000),pre:'$',suf:'K',delta:'',accent:false},
+  ];
+  document.getElementById('kg').innerHTML=kpis.map((k,i)=>`
+    <div class="kpi glass stagger" id="kpi${i}">
+      <div class="kpi-shine"></div>
+      <div class="kl">${k.label}</div>
+      <div class="kv${k.accent?' accent':''}" id="${k.id}">—</div>
+      ${k.delta}
+    </div>`).join('');
+  kpis.forEach((k,i)=>setTimeout(()=>{
+    const el=document.getElementById(k.id);
+    if(el) animCount(el,k.target,k.pre,k.suf,850);
+  },i*80+300));
+}
+
+function renderTrend(data){
+  const id='tc', y=document.getElementById('yf').value;
+  const years=y==='all'?['2023','2024']:[y];
+  const yc={'2023':'#5dcaa5','2024':'#7F77DD'};
+  const newData=years.map(yr=>{
+    const m=Array(12).fill(0);
+    data.filter(d=>d.year===yr).forEach(d=>{m[d.month-1]+=d.revenue;});
+    return m.map(v=>Math.round(v));
+  });
+  mkLeg('tl',years.map(yr=>[yr,yc[yr]]));
+  if(charts[id]){
+    charts[id].data.datasets.forEach((ds,i)=>{ ds.data=newData[i]||[]; });
+    charts[id].update(600); return;
+  }
+  const opts=baseOpts();
+  opts.scales.y.ticks.callback=v=>'$'+Math.round(v/1000)+'K';
+  opts.scales.x.ticks.autoSkip=false;
+  charts[id]=new Chart(document.getElementById(id),{ type:'line',
+    data:{ labels:MONTHS, datasets:years.map(yr=>({
+      label:yr, data:data.filter(d=>d.year===yr).reduce((acc,d)=>{ acc[d.month-1]+=d.revenue; return acc; },Array(12).fill(0)).map(v=>Math.round(v)),
+      borderColor:yc[yr], backgroundColor:yc[yr]+'18', fill:true, tension:0.4,
+      pointRadius:4, pointBackgroundColor:yc[yr], pointBorderColor:'#111210', pointBorderWidth:2,
+      borderDash:yr==='2023'?[4,3]:[]
+    }))}, options:opts });
+}
+
+function renderBrand(data){
+  const id='bc', brands=['Nike','Adidas','Puma'];
+  const revs=brands.map(b=>Math.round(data.filter(d=>d.brand===b).reduce((s,d)=>s+d.revenue,0)));
+  mkLeg('bl',brands.map((b,i)=>[b+' '+fmtM(revs[i]),BC[b]]));
+  if(charts[id]){
+    charts[id].data.datasets[0].data=revs;
+    charts[id].update(700); return;
+  }
+  const opts=baseOpts();
+  opts.indexAxis='y';
+  opts.scales.x.ticks.callback=v=>'$'+Math.round(v/1000)+'K';
+  opts.scales.y.grid={display:false};
+  opts.animation={duration:900,easing:'easeOutBack'};
+  /* bar hover: dim others */
+  opts.onHover=(evt,els,chart)=>{
+    chart.data.datasets[0].backgroundColor=brands.map((_,i)=>
+      els.length===0||els[0].index===i ? BC[brands[i]]+'cc' : BC[brands[i]]+'30'
+    );
+    chart.update('none');
+  };
+  charts[id]=new Chart(document.getElementById(id),{ type:'bar',
+    data:{ labels:brands, datasets:[{
+      data:revs, backgroundColor:brands.map(b=>BC[b]+'cc'),
+      borderColor:brands.map(b=>BC[b]), borderWidth:1, borderRadius:4, borderSkipped:false
+    }]}, options:opts });
+}
+
+function renderRegion(data){
+  const id='rc', regions=['North','South','East','West'];
+  const revs=regions.map(r=>Math.round(data.filter(d=>d.region===r).reduce((s,d)=>s+d.revenue,0)));
+  const total=revs.reduce((a,b)=>a+b,0);
+  mkLeg('rl',regions.map((r,i)=>[r+' '+Math.round(revs[i]/total*100)+'%',RC[r]]));
+  if(charts[id]){
+    charts[id].data.datasets[0].data=revs;
+    charts[id].update(700); return;
+  }
+  charts[id]=new Chart(document.getElementById(id),{ type:'doughnut',
+    data:{ labels:regions, datasets:[{
+      data:revs, backgroundColor:regions.map(r=>RC[r]+'cc'),
+      borderColor:regions.map(r=>RC[r]), borderWidth:1.5, hoverOffset:8
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'65%',
+      animation:{animateRotate:true,animateScale:true,duration:900,easing:'easeOutQuart'},
+      plugins:{legend:{display:false}} }
+  });
+}
+
+function renderRetailer(data){
+  const id='retc', retailers=['Amazon','Walmart','Target'];
+  const units=retailers.map(r=>data.filter(d=>d.retailer===r).reduce((s,d)=>s+d.units,0));
+  mkLeg('retl',retailers.map((r,i)=>[r+' '+units[i].toLocaleString(),RTC[r]]));
+  if(charts[id]){
+    charts[id].data.datasets[0].data=units;
+    charts[id].update(700); return;
+  }
+  const opts=baseOpts();
+  opts.scales.x.grid={display:false};
+  opts.scales.y.ticks.callback=v=>v.toLocaleString();
+  opts.animation={duration:900,easing:'easeOutBack'};
+  charts[id]=new Chart(document.getElementById(id),{ type:'bar',
+    data:{ labels:retailers, datasets:[{
+      data:units, backgroundColor:retailers.map(r=>RTC[r]+'cc'),
+      borderColor:retailers.map(r=>RTC[r]), borderWidth:1, borderRadius:5, borderSkipped:false
+    }]}, options:opts });
+}
+
+function renderHL(data){
+  const brands=['Nike','Adidas','Puma'], regions=['North','South','East','West'], retailers=['Amazon','Walmart','Target'];
+  const bRevs=Object.fromEntries(brands.map(b=>[b,data.filter(d=>d.brand===b).reduce((s,d)=>s+d.revenue,0)]));
+  const rRevs=Object.fromEntries(regions.map(r=>[r,data.filter(d=>d.region===r).reduce((s,d)=>s+d.revenue,0)]));
+  const retU=Object.fromEntries(retailers.map(r=>[r,data.filter(d=>d.retailer===r).reduce((s,d)=>s+d.units,0)]));
+  const sb=brands.slice().sort((a,b)=>bRevs[b]-bRevs[a]);
+  const sr=regions.slice().sort((a,b)=>rRevs[b]-rRevs[a]);
+  const sret=retailers.slice().sort((a,b)=>retU[b]-retU[a]);
+  const nikeAOV=data.filter(d=>d.brand==='Nike').reduce((s,d)=>s+d.revenue/d.units,0)/Math.max(1,data.filter(d=>d.brand==='Nike').length);
+  const pumaAOV=data.filter(d=>d.brand==='Puma').reduce((s,d)=>s+d.revenue/d.units,0)/Math.max(1,data.filter(d=>d.brand==='Puma').length);
+  const total=Object.values(rRevs).reduce((a,b)=>a+b,0);
+  const totalU=Object.values(retU).reduce((a,b)=>a+b,0);
+  document.getElementById('hlg').innerHTML=`
+  <div class="hc hi stagger">
+    <div class="hh"><i class="ti ti-trending-up" style="font-size:13px"></i> 3 highlights</div>
+    <div class="hi-item"><div class="dot hi"></div><div class="ht"><strong>${sb[0]} leads all revenue</strong><span>${fmtB(bRevs[sb[0]])} total · $${Math.round(nikeAOV)}/unit avg</span></div></div>
+    <div class="hi-item"><div class="dot hi"></div><div class="ht"><strong>${sr[0]} is the top region</strong><span>${fmtM(rRevs[sr[0]])} revenue · consistent YoY performance</span></div></div>
+    <div class="hi-item"><div class="dot hi"></div><div class="ht"><strong>${sret[0]} leads unit throughput</strong><span>${retU[sret[0]].toLocaleString()} units · ${Math.round(retU[sret[0]]/totalU*100)}% of all units</span></div></div>
+  </div>
+  <div class="hc lo stagger">
+    <div class="hh"><i class="ti ti-alert-triangle" style="font-size:13px"></i> 3 lowlights</div>
+    <div class="hi-item"><div class="dot lo"></div><div class="ht"><strong>Puma unit price gap is critical</strong><span>$${Math.round(pumaAOV)}/unit vs $${Math.round(nikeAOV)} Nike · premium SKU review needed</span></div></div>
+    <div class="hi-item"><div class="dot lo"></div><div class="ht"><strong>East region underperforms</strong><span>${Math.round(rRevs['East']/total*100)}% of revenue · invest in retailer engagement</span></div></div>
+    <div class="hi-item"><div class="dot lo"></div><div class="ht"><strong>Target share is weakest</strong><span>${Math.round(retU['Target']/totalU*100)}% of units · launch exclusive promotions</span></div></div>
+  </div>`;
+}
+
+render();
+</script>
+</body>
+</html>
